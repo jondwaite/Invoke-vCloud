@@ -8,7 +8,7 @@ Function Invoke-vCloud(
 [Parameter(Mandatory=$true)][uri]$URI,      # We must specify the API endpoint
 [string]$ContentType,                       # Optional ContentType for returned XML
 [string]$Method = 'GET',                    # HTTP verb to use (default 'GET')
-[string]$ApiVersion = '27.0',               # vCloud Director API version (default to vCD 8.20 - version 27.0)
+[string]$ApiVersion,                        # vCloud Director API version
 [string]$Body,                              # Any body document to be submitted to the API
 [int]$Timeout = 40,                         # Timeout in seconds to wait for API response (by default)
 [boolean]$WaitForTask = $false,             # Should we wait for task completion if reponse includes a task href?
@@ -31,8 +31,8 @@ An optional parameter to specify the HTML verb to be used (GET, PUT, POST or
 DELETE). Defaults to 'GET' if not specified.
 .PARAMETER ApiVersion
 An optional parameter to specify the API version to be used for the call.
-Defaults to '27.0' if not specified which is the API version for vCloud
-Director v8.20.
+If not specified a request will be made to https://<host>/api/versions and
+the highest non-deprecated version returned used.
 .PARAMETER Body
 An optional parameter which specifies XML body to be submitted to the API
 (usually for a PUT or POST action).
@@ -75,6 +75,22 @@ calls to suceed.
         }
     } # $mySessionID not set
 
+    # Determine which API version we should use if none is specified:
+    if (!$ApiVersion) {
+        $ApiUri = "https://$($URI.Host)/api/versions"
+        $Headers = @{"Accept"='application/*+xml'}
+        Try {
+            [xml]$r = Invoke-RestMethod -Method Get -Uri $ApiUri -Headers $Headers -TimeoutSec $Timeout
+        } Catch {
+            Write-Warning ("Invoke-vCloud Exception finding API versions: $($_.Exception.Message)")
+            if ( $_.Exception.ItemName ) { Write-Warning ("Failed Item: $($_.Exception.ItemName)") }
+            Return
+        }
+        $ApiVersion = (($r.SupportedVersions.VersionInfo | Where-Object { $_.deprecated -eq $False }) | Measure-Object -Property Version -Maximum).Maximum.ToString() + ".0"
+
+        Write-Host ("Using API version: $($ApiVersion)")
+    }
+    
     # If ContentType or Body are not specified, remove the variable definitions so they won't get passed to Invoke-RestMethod:
     if (!$ContentType) { Remove-Variable ContentType }
     if (!$Body) { Remove-Variable Body }
