@@ -15,6 +15,7 @@ Function Invoke-vCloud(
     [switch]$WaitForTask,                       # Should we wait for task completion if reponse includes a task href?
     [string]$vCloudToken,                       # If not already authenticated using Connect-CIServer (PowerCLI) allow us to specify a token
     [string]$vCloudJWT,                         # Allow use of JWT token instead of x-vcloud-authorization token
+    [string]$Accept = 'application/*+xml',      # Override the 'Accept' HTML header sumbitted with the API request
     [switch]$skipCertificateCheck               # Ignore the SSL certificate presented by the endpoint - Requires PS 7.0+
 )
 {
@@ -63,6 +64,10 @@ Another alternative method of passing a session token to Invoke-vCloud using
 a Java Web Token (JWT) from an existing session. The session must have already
 been established and be still valid (not timed-out). The value supplied is
 copied to the 'X-VMWARE-VCLOUD-ACCESS-TOKEN' header value in API calls.
+.PARAMETER Accept
+This parameter provides a way to override the default 'Accept' header sent
+to all Cloud Director API calls. The default of 'application/*+xml' should
+be suitable in most cases.
 .PARAMETER skipCertificateCheck
 A switch that allows ignoring invalid SSL certificates from the API endpoint.
 Should not be used in production environments. Note that the
@@ -97,7 +102,7 @@ calls to suceed.
         if ($vCloudToken) {
             $Headers = @{'x-vcloud-authorization'=$vCloudToken}
         } elseif ($vCloudJWT) {
-            $Headers = @{'X-VMWARE-VCLOUD-ACCESS-TOKEN'=$vCloudJWT}
+            $Headers = @{'Authorization'="Bearer $($vCloudJWT)"}
         } else {
             Write-Error ("No existing Connect-CIServer session found and no vCloudToken or vCloudJWT token specified.")
             Write-Error ("Cannot authenticate to the vCloud API, exiting.")
@@ -106,7 +111,7 @@ calls to suceed.
     }
 
     # Configure HTTP headers for this request:
-    $Headers.Add("Accept","application/*+xml;version=$($ApiVersion)")
+    $Headers.Add("Accept","$($Accept);version=$($ApiVersion)")
 
     # Build parameters hash to be passed to Invoke-RestMethod
     $InvokeParams = @{
